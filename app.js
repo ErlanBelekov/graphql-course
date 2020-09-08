@@ -2,10 +2,11 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const { graphqlHTTP } = require('express-graphql');
 const { buildSchema } = require('graphql');
+const mongoose = require('mongoose');
+
+const Event = require('./models/event');
 
 const app = express();
-
-const events = [];
 
 app.use(bodyParser.json());
 
@@ -42,22 +43,53 @@ app.use(
       }
     `),
     rootValue: {
-      events: () => events,
+      events: () => {
+        return Event.find()
+          .then((events) => {
+            return events.map((event) => ({
+              ...event._doc,
+              _id: event._doc._id.toString(),
+            }));
+          })
+          .catch((e) => {
+            console.error(e);
+            throw e;
+          });
+      },
       createEvent: (args) => {
         const { title, description, price, date } = args.eventInput;
-        const event = {
-          _id: Math.random().toString(),
+        const event = new Event({
           title,
           description,
           price,
-          date,
-        };
-        events.push(event);
-        return event;
+          date: new Date(date),
+        });
+        return event
+          .save()
+          .then((result) => {
+            return { ...result._doc, _id: result._doc._id.toString() };
+          })
+          .catch((e) => {
+            console.log(e);
+          });
       },
     },
     graphiql: true,
   })
 );
 
-app.listen(3000, () => console.log('server started'));
+mongoose
+  .connect(
+    `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PWD}@cluster0.wtfew.mongodb.net/${process.env.DB_NAME}?retryWrites=true&w=majority`,
+    {
+      useUnifiedTopology: true,
+      useNewUrlParser: true,
+    }
+  )
+  .then((res) => {
+    console.log('connected to Mongo');
+    app.listen(3000, () => console.log('server started'));
+  })
+  .catch((e) => {
+    console.error(e);
+  });
