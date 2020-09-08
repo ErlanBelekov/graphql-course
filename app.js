@@ -3,8 +3,10 @@ const bodyParser = require('body-parser');
 const { graphqlHTTP } = require('express-graphql');
 const { buildSchema } = require('graphql');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const Event = require('./models/event');
+const User = require('./models/user');
 
 const app = express();
 
@@ -22,11 +24,22 @@ app.use(
         date: String!
       }
 
+      type User {
+        _id: ID!
+        email: String!
+        password: String
+      }
+
       input EventInput {
         title: String!
         description: String!
         price: Float!
         date: String!
+      }
+
+      input UserInput {
+        email: String!
+        password: String!
       }
 
       type RootQuery {
@@ -35,6 +48,7 @@ app.use(
 
       type RootMutation {
         createEvent(eventInput: EventInput): Event
+        createUser(userInput: UserInput): User
       }
 
       schema {
@@ -63,14 +77,39 @@ app.use(
           description,
           price,
           date: new Date(date),
+          creator: '5f576f16be4a670d3d088567',
         });
+        let createdEvent;
+
         return event
           .save()
           .then((result) => {
-            return { ...result._doc, _id: result._doc._id.toString() };
+            createdEvent = { ...result._doc, _id: result._doc._id.toString() };
+            return User.findById('5f576f16be4a670d3d088567');
           })
+          .then((user) => {
+            if (!user) {
+              throw new Error('User not found');
+            }
+            user.createdEvents.push(event);
+            return user.save();
+          })
+          .then((res) => createdEvent)
           .catch((e) => {
             console.log(e);
+          });
+      },
+      createUser: (args) => {
+        const { email, password } = args.userInput;
+        return bcrypt
+          .hash(password, 12)
+          .then((hashedPass) => {
+            const user = new User({ email, password: hashedPass });
+            return user.save();
+          })
+          .then((res) => ({ ...res._doc, password: null, _id: res.id }))
+          .catch((err) => {
+            throw err;
           });
       },
     },
