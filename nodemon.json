@@ -1,0 +1,7 @@
+{
+  "env": {
+    "MONGO_USER": "root",
+    "MONGO_PWD": "erlan201001",
+    "DB_NAME": "eventsReactGraphql"
+  }
+}
